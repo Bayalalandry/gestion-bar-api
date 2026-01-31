@@ -1,9 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 require('dotenv').config();
 
@@ -11,67 +7,85 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('combined'));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use('/api/', limiter);
-
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gestion-bar', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+// Log all requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
 });
 
-// Routes
+// Health check route (must be first)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  console.log('Health check accessed');
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    message: 'API Gestion Bar is running'
+  });
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'API Gestion Bar - Remote Management System',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth/login',
+      produits: '/api/produits',
+      employes: '/api/employes',
+      ventes: '/api/ventes/recent',
+      stats: '/api/stats/realtime'
+    }
+  });
 });
 
 // Auth routes
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', (req, res) => {
   try {
     const { username, password, role } = req.body;
+    console.log('Login attempt:', { username, role });
     
-    // Verification simple (to improve with real database)
     if (username === 'patron' && password === 'admin123' && role === 'patron') {
-      const token = 'jwt_token_placeholder'; // To replace with real JWT
-      res.json({ success: true, token, user: { username, role } });
+      res.json({ 
+        success: true, 
+        token: 'jwt_token_placeholder_' + Date.now(),
+        user: { username, role } 
+      });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // Produits routes
-app.get('/api/produits', async (req, res) => {
+app.get('/api/produits', (req, res) => {
   try {
-    // Simulate product data
     const produits = [
       { id: 1, nom: 'Biere', prix: 500, quantite: 50, categorie: 'Boissons' },
       { id: 2, nom: 'Coca-Cola', prix: 300, quantite: 100, categorie: 'Boissons' },
-      { id: 3, nom: 'Chips', prix: 200, quantite: 30, categorie: 'Snacks' }
+      { id: 3, nom: 'Chips', prix: 200, quantite: 30, categorie: 'Snacks' },
+      { id: 4, nom: 'Vin Rouge', prix: 1500, quantite: 25, categorie: 'Boissons' },
+      { id: 5, nom: 'Soda', prix: 250, quantite: 80, categorie: 'Boissons' }
     ];
+    console.log('Produits requested:', produits.length, 'items');
     res.json({ success: true, produits });
   } catch (error) {
+    console.error('Produits error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-app.post('/api/produits', async (req, res) => {
+app.post('/api/produits', (req, res) => {
   try {
     const produit = req.body;
-    // Add product logic
     console.log('Add product:', produit);
     res.json({ success: true, message: 'Product added successfully', produit });
   } catch (error) {
@@ -79,11 +93,10 @@ app.post('/api/produits', async (req, res) => {
   }
 });
 
-app.put('/api/produits/:id', async (req, res) => {
+app.put('/api/produits/:id', (req, res) => {
   try {
     const { id } = req.params;
     const produit = req.body;
-    // Update product logic
     console.log('Update product:', id, produit);
     res.json({ success: true, message: 'Product updated successfully', produit });
   } catch (error) {
@@ -91,10 +104,9 @@ app.put('/api/produits/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/produits/:id', async (req, res) => {
+app.delete('/api/produits/:id', (req, res) => {
   try {
     const { id } = req.params;
-    // Delete product logic
     console.log('Delete product:', id);
     res.json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
@@ -102,11 +114,10 @@ app.delete('/api/produits/:id', async (req, res) => {
   }
 });
 
-app.put('/api/produits/:id/stock', async (req, res) => {
+app.put('/api/produits/:id/stock', (req, res) => {
   try {
     const { id } = req.params;
     const { quantite, raison } = req.body;
-    // Update stock logic
     console.log('Update stock:', id, quantite, raison);
     res.json({ success: true, message: 'Stock updated successfully' });
   } catch (error) {
@@ -114,11 +125,10 @@ app.put('/api/produits/:id/stock', async (req, res) => {
   }
 });
 
-app.post('/api/produits/:id/reapprovisionner', async (req, res) => {
+app.post('/api/produits/:id/reapprovisionner', (req, res) => {
   try {
     const { id } = req.params;
     const { quantite } = req.body;
-    // Restock logic
     console.log('Restock product:', id, quantite);
     res.json({ success: true, message: 'Product restocked successfully' });
   } catch (error) {
@@ -127,22 +137,24 @@ app.post('/api/produits/:id/reapprovisionner', async (req, res) => {
 });
 
 // Employes routes
-app.get('/api/employes', async (req, res) => {
+app.get('/api/employes', (req, res) => {
   try {
     const employes = [
       { id: 1, nom: 'Jean Dupont', nomUtilisateur: 'jean', role: 'employe' },
-      { id: 2, nom: 'Marie Curie', nomUtilisateur: 'marie', role: 'manager' }
+      { id: 2, nom: 'Marie Curie', nomUtilisateur: 'marie', role: 'manager' },
+      { id: 3, nom: 'Pierre Martin', nomUtilisateur: 'pierre', role: 'employe' }
     ];
+    console.log('Employes requested:', employes.length, 'items');
     res.json({ success: true, employes });
   } catch (error) {
+    console.error('Employes error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-app.post('/api/employes', async (req, res) => {
+app.post('/api/employes', (req, res) => {
   try {
     const employe = req.body;
-    // Add employee logic
     console.log('Add employee:', employe);
     res.json({ success: true, message: 'Employee added successfully', employe });
   } catch (error) {
@@ -150,11 +162,10 @@ app.post('/api/employes', async (req, res) => {
   }
 });
 
-app.put('/api/employes/:id', async (req, res) => {
+app.put('/api/employes/:id', (req, res) => {
   try {
     const { id } = req.params;
     const employe = req.body;
-    // Update employee logic
     console.log('Update employee:', id, employe);
     res.json({ success: true, message: 'Employee updated successfully', employe });
   } catch (error) {
@@ -162,10 +173,9 @@ app.put('/api/employes/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/employes/:id', async (req, res) => {
+app.delete('/api/employes/:id', (req, res) => {
   try {
     const { id } = req.params;
-    // Delete employee logic
     console.log('Delete employee:', id);
     res.json({ success: true, message: 'Employee deleted successfully' });
   } catch (error) {
@@ -173,11 +183,10 @@ app.delete('/api/employes/:id', async (req, res) => {
   }
 });
 
-app.put('/api/employes/:id/password', async (req, res) => {
+app.put('/api/employes/:id/password', (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
-    // Reset password logic
     console.log('Reset password:', id);
     res.json({ success: true, message: 'Password reset successfully' });
   } catch (error) {
@@ -186,23 +195,25 @@ app.put('/api/employes/:id/password', async (req, res) => {
 });
 
 // Ventes routes
-app.get('/api/ventes/recent', async (req, res) => {
+app.get('/api/ventes/recent', (req, res) => {
   try {
     const ventes = [
       { id: 1, clientNom: 'Client A', total: 1500, quantite: 3, dateVente: new Date() },
-      { id: 2, clientNom: 'Client B', total: 800, quantite: 2, dateVente: new Date() }
+      { id: 2, clientNom: 'Client B', total: 800, quantite: 2, dateVente: new Date() },
+      { id: 3, clientNom: 'Client C', total: 2300, quantite: 5, dateVente: new Date() }
     ];
+    console.log('Recent ventes requested:', ventes.length, 'items');
     res.json({ success: true, ventes });
   } catch (error) {
+    console.error('Ventes error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-app.put('/api/ventes/:id/annuler', async (req, res) => {
+app.put('/api/ventes/:id/annuler', (req, res) => {
   try {
     const { id } = req.params;
     const { raison } = req.body;
-    // Cancel sale logic
     console.log('Cancel sale:', id, raison);
     res.json({ success: true, message: 'Sale cancelled successfully' });
   } catch (error) {
@@ -211,7 +222,7 @@ app.put('/api/ventes/:id/annuler', async (req, res) => {
 });
 
 // Stats routes
-app.get('/api/stats/realtime', async (req, res) => {
+app.get('/api/stats/realtime', (req, res) => {
   try {
     const stats = {
       chiffreAffaires: 150000,
@@ -226,37 +237,39 @@ app.get('/api/stats/realtime', async (req, res) => {
         { type: 'stock', message: 'Stock bas pour Biere', timestamp: new Date() }
       ]
     };
+    console.log('Realtime stats requested');
     res.json(stats);
   } catch (error) {
+    console.error('Stats error:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
 // Sync routes
-app.post('/api/sync/ventes', async (req, res) => {
+app.post('/api/sync/ventes', (req, res) => {
   try {
     const { ventes, timestamp } = req.body;
-    console.log('Sync ventes:', ventes.length, 'ventes at', timestamp);
+    console.log('Sync ventes:', ventes?.length || 0, 'ventes');
     res.json({ success: true, message: 'Sales synchronized' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-app.post('/api/sync/produits', async (req, res) => {
+app.post('/api/sync/produits', (req, res) => {
   try {
     const { produits, timestamp } = req.body;
-    console.log('Sync produits:', produits.length, 'produits at', timestamp);
+    console.log('Sync produits:', produits?.length || 0, 'produits');
     res.json({ success: true, message: 'Products synchronized' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-app.post('/api/sync/utilisateurs', async (req, res) => {
+app.post('/api/sync/utilisateurs', (req, res) => {
   try {
     const { utilisateurs, timestamp } = req.body;
-    console.log('Sync utilisateurs:', utilisateurs.length, 'utilisateurs at', timestamp);
+    console.log('Sync utilisateurs:', utilisateurs?.length || 0, 'utilisateurs');
     res.json({ success: true, message: 'Users synchronized' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -264,10 +277,10 @@ app.post('/api/sync/utilisateurs', async (req, res) => {
 });
 
 // Alerts routes
-app.post('/api/alerts', async (req, res) => {
+app.post('/api/alerts', (req, res) => {
   try {
     const { type, message, timestamp } = req.body;
-    console.log('Alert:', type, message, timestamp);
+    console.log('Alert:', type, message);
     res.json({ success: true, message: 'Alert recorded' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -276,16 +289,21 @@ app.post('/api/alerts', async (req, res) => {
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Server error:', err);
   res.status(500).json({ success: false, message: 'Server error' });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+  console.log('404 - Route not found:', req.method, req.path);
+  res.status(404).json({ success: false, message: 'Route not found', path: req.path });
 });
 
 app.listen(PORT, () => {
-  console.log('Server API Gestion Bar started on port ' + PORT);
-  console.log('Health check: http://localhost:' + PORT + '/api/health');
+  console.log('='.repeat(50));
+  console.log('🚀 API Gestion Bar started successfully!');
+  console.log('📍 Port:', PORT);
+  console.log('🏥 Health check:', `http://localhost:${PORT}/api/health`);
+  console.log('🌐 Environment:', process.env.NODE_ENV || 'development');
+  console.log('='.repeat(50));
 });
